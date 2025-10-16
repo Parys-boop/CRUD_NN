@@ -10,11 +10,11 @@ using VendasMvc.Models;
 
 namespace VendasMvc.Controllers
 {
-    public class ProdutoController : Controller
+    public class ProdutosController : Controller
     {
         private readonly AppDbContext _context;
 
-        public ProdutoController(AppDbContext context)
+        public ProdutosController(AppDbContext context)
         {
             _context = context;
         }
