@@ -1,140 +1,119 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using VendasMvc.Data;
 using VendasMvc.Models;
-
 namespace VendasMvc.Controllers
 {
-    public class ClienteController : Controller
+    public class ClientesController : Controller
     {
         private readonly AppDbContext _context;
 
-        public ClienteController(AppDbContext context)
+        public ClientesController(AppDbContext context)
         {
             _context = context;
         }
 
-        // GET: Cliente
-        public async Task<IActionResult> Index()
+        // helper de mensagens
+        private void Success(string m) => TempData["Success"] = m;
+        private void Error(string m) => TempData["Error"] = m;
+
+        // GET: Clientes
+        public async Task<IActionResult> Index(string? q)
         {
-            return View(await _context.Clientes.ToListAsync());
+            ViewData["Title"] = "Clientes";
+            ViewData["q"] = q;
+
+            var query = _context.Clientes.AsNoTracking();
+
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                // Postgres: ILIKE faz case-insensitive
+                query = query.Where(c =>
+                    EF.Functions.ILike(c.Nome, $"%{q}%") ||
+                    EF.Functions.ILike(c.Email ?? "", $"%{q}%") ||
+                    EF.Functions.ILike(c.Telefone ?? "", $"%{q}%"));
+            }
+
+            var list = await query.OrderBy(c => c.Nome).ToListAsync();
+            return View(list);
         }
 
-        // GET: Cliente/Details/5
+        // GET: Clientes/Details/5
         public async Task<IActionResult> Details(int? id)
         {
-            if (id == null)
-            {
-                return NotFound();
-            }
-
-            var cliente = await _context.Clientes
-                .FirstOrDefaultAsync(m => m.Id == id);
-            if (cliente == null)
-            {
-                return NotFound();
-            }
-
+            if (id == null) return NotFound();
+            var cliente = await _context.Clientes.FirstOrDefaultAsync(m => m.Id == id);
+            if (cliente == null) return NotFound();
+            ViewData["Title"] = "Detalhes do Cliente";
             return View(cliente);
         }
 
-        // GET: Cliente/Create
+        // GET: Clientes/Create
         public IActionResult Create()
         {
-            return View();
+            ViewData["Title"] = "Novo Cliente";
+            return View(new Cliente());
         }
 
-        // POST: Cliente/Create
-        // To protect from overposting attacks, enable the specific properties you want to bind to.
-        // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
+        // POST: Clientes/Create
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create([Bind("Id,Nome,Email,Telefone")] Cliente cliente)
+        public async Task<IActionResult> Create(Cliente cliente)
         {
-            if (ModelState.IsValid)
-            {
-                _context.Add(cliente);
-                await _context.SaveChangesAsync();
-                return RedirectToAction(nameof(Index));
-            }
-            return View(cliente);
+            if (!ModelState.IsValid) return View(cliente);
+
+            _context.Add(cliente);
+            await _context.SaveChangesAsync();
+            Success("Cliente cadastrado com sucesso!");
+            return RedirectToAction(nameof(Index));
         }
 
-        // GET: Cliente/Edit/5
+        // GET: Clientes/Edit/5
         public async Task<IActionResult> Edit(int? id)
         {
-            if (id == null)
-            {
-                return NotFound();
-            }
-
+            if (id == null) return NotFound();
             var cliente = await _context.Clientes.FindAsync(id);
-            if (cliente == null)
-            {
-                return NotFound();
-            }
+            if (cliente == null) return NotFound();
+            ViewData["Title"] = "Editar Cliente";
             return View(cliente);
         }
 
-        // POST: Cliente/Edit/5
-        // To protect from overposting attacks, enable the specific properties you want to bind to.
-        // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
+        // POST: Clientes/Edit/5
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(int id, [Bind("Id,Nome,Email,Telefone")] Cliente cliente)
+        public async Task<IActionResult> Edit(int id, Cliente cliente)
         {
-            if (id != cliente.Id)
-            {
-                return NotFound();
-            }
+            if (id != cliente.Id) return NotFound();
+            if (!ModelState.IsValid) return View(cliente);
 
-            if (ModelState.IsValid)
+            try
             {
-                try
-                {
-                    _context.Update(cliente);
-                    await _context.SaveChangesAsync();
-                }
-                catch (DbUpdateConcurrencyException)
-                {
-                    if (!ClienteExists(cliente.Id))
-                    {
-                        return NotFound();
-                    }
-                    else
-                    {
-                        throw;
-                    }
-                }
+                _context.Update(cliente);
+                await _context.SaveChangesAsync();
+                Success("Cliente atualizado com sucesso!");
                 return RedirectToAction(nameof(Index));
             }
-            return View(cliente);
+            catch (DbUpdateConcurrencyException)
+            {
+                if (!_context.Clientes.Any(e => e.Id == cliente.Id)) return NotFound();
+                Error("Não foi possível salvar as alterações.");
+                throw;
+            }
         }
 
-        // GET: Cliente/Delete/5
+        // GET: Clientes/Delete/5
         public async Task<IActionResult> Delete(int? id)
         {
-            if (id == null)
-            {
-                return NotFound();
-            }
-
-            var cliente = await _context.Clientes
-                .FirstOrDefaultAsync(m => m.Id == id);
-            if (cliente == null)
-            {
-                return NotFound();
-            }
-
+            if (id == null) return NotFound();
+            var cliente = await _context.Clientes.FirstOrDefaultAsync(m => m.Id == id);
+            if (cliente == null) return NotFound();
+            ViewData["Title"] = "Excluir Cliente";
             return View(cliente);
         }
 
-        // POST: Cliente/Delete/5
+        // POST: Clientes/Delete/5
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(int id)
@@ -143,15 +122,10 @@ namespace VendasMvc.Controllers
             if (cliente != null)
             {
                 _context.Clientes.Remove(cliente);
+                await _context.SaveChangesAsync();
+                Success("Cliente excluído com sucesso!");
             }
-
-            await _context.SaveChangesAsync();
             return RedirectToAction(nameof(Index));
-        }
-
-        private bool ClienteExists(int id)
-        {
-            return _context.Clientes.Any(e => e.Id == id);
         }
     }
 }
